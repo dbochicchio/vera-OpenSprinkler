@@ -1,5 +1,5 @@
 # OpenSprinkler plug-in for Vera
-Completely new and rewritten plug-in to interface an OpenSprinkler to a Vera system.
+Completely new and rewritten plug-in to interface an OpenSprinkler to a Vera or openLuup system.
 It is able to discovery and control:
 - Programs (turn on/off)
 - Zones (turn on/off, length in minutes using a dimmer)
@@ -69,5 +69,10 @@ If you want to see more debug info, set *Debug* variable on master device to *1*
 # OpenLuup/ALTUI
 The devices are working and supported under OpenLuup and AltUI. In this case, if you're using an old version of AltUI, just be sure the get the base service file from Vera (automatically done if you have the Vera Bridge installed).
 
-# Support
-If you need more help, please post it on Vera's forum and tag me (@therealdb).
+### Support
+Before asking for support, please:
+ - change *DebugMode* variable to 1 (on the device itself, not on the master)
+ - repeat your problem and capture logs
+ - logs could be captured via SSH or by navigating to `http://VeraIP/cgi-bin/cmh/log.sh?Device=LuaUPnP`. [More Info](http://wiki.micasaverde.com/index.php/Logs)
+
+If you need help, visit [SmartHome.Community](https://smarthome.community/) and tag me (therealdb).
