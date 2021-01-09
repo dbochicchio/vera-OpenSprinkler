@@ -3,3 +3,8 @@
 ################################################################################
 
 /.vs
+*.dev.sh
+/VeraAlexa/S_Volume1.xml
+.editorconfig
+/VirtualDevices/I_VirtualWindowCover.xml
+/VeraAlexa/VeraAlexa
