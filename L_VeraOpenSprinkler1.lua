@@ -38,6 +38,7 @@ local COMMANDS_LEGACY_SETTINGS			= "jc"
 local COMMANDS_LEGACY_OPTIONS			= "jo"
 local COMMANDS_LEGACY_STATIONS			= "jn"
 local COMMANDS_LEGACY_PROGRAMS			= "jp"
+local COMMANDS_LEGACY_STATUS			= "js"
 local COMMANDS_SETPOWER_ZONE			= "cm"
 local COMMANDS_SETPOWER_PROGRAM			= "mp"
 local COMMANDS_CHANGEVARIABLES			= "cv"
@@ -521,6 +522,11 @@ end
 local function updateStatus(jsonResponse)
 	D("Update status in progress...")
 
+	if jsonResponse == nil then
+		D("Update status: nil response")
+		return
+	end
+
 	-- STATUS
 	local state = tonumber(jsonResponse and jsonResponse.settings and jsonResponse.settings.en or 0)
 	D("Controller status: %1, %2", state, state == 1 and "1" or "0")
@@ -574,43 +580,44 @@ local function updateStatus(jsonResponse)
 	end
 
 	-- ZONE STATUS
-	local stations = tonumber(jsonResponse.status.nstations) or 0
-
-	setVar(MYSID, "MaxZones", stations, masterID)
+	if jsonResponse.status ~= nil then
+		local stations = tonumber(jsonResponse.status.nstations or 8)
+		setVar(MYSID, "MaxZones", stations, masterID)
 		
-	for i = 1, stations do
-		-- Locate the device which represents the irrigation zone
-		local childID = findChild(string.format(CHILDREN_ZONE, i))
+		for i = 1, stations do
+			-- Locate the device which represents the irrigation zone
+			local childID = findChild(string.format(CHILDREN_ZONE, i))
 
-		if childID > 0 then
-			local state = tonumber(jsonResponse.status.sn[i] or "0")
+			if childID > 0 then
+				local state = tonumber(jsonResponse.status.sn[i] or "0")
 
-			-- update zone status if changed
-			local currentState = getVarNumeric(SWITCHSID, "Status", 0, childID)
-			if currentState ~= state then
-				initVar(SWITCHSID, "Target", "0", childID)
-				setVar(HASID, "Configured", "1", childID)
+				-- update zone status if changed
+				local currentState = getVarNumeric(SWITCHSID, "Status", 0, childID)
+				if currentState ~= state then
+					initVar(SWITCHSID, "Target", "0", childID)
+					setVar(HASID, "Configured", "1", childID)
 
-				setVar(SWITCHSID, "Status", (state == 1) and "1" or "0", childID)
+					setVar(SWITCHSID, "Status", (state == 1) and "1" or "0", childID)
 
-				setVerboseDisplay("Zone: " .. ((state == 1) and "Running" or "Idle"), nil, childID)
-				D("Update Zone: %1 - Status: %2", i, state)
+					setVerboseDisplay("Zone: " .. ((state == 1) and "Running" or "Idle"), nil, childID)
+					D("Update Zone: %1 - Status: %2", i, state)
+				else
+					D("Update Zone Skipped for #%1: %2 - Status: %3 - %4", childID, i, state, currentState)
+				end
+
+				-- update level
+				local ps = jsonResponse.settings.ps[i]
+				D('Zone status: %1', ps)
+
+				local level = math.floor(tonumber(ps[2]) / 60  + 0.5)
+				setVar(DIMMERSID, "LoadLevelTarget", level, childID)
+				setVar(DIMMERSID, "LoadLevelStatus", level, childID)
+				D('Zone status level: %1', level)
+
+				setLastUpdate(childID)
 			else
-				D("Update Zone Skipped for #%1: %2 - Status: %3 - %4", childID, i, state, currentState)
+				D("Zone not found: %1", i)
 			end
-
-			-- update level
-			local ps = jsonResponse.settings.ps[i]
-			D('Zone status: %1', ps)
-
-			local level = math.floor(tonumber(ps[2]) / 60  + 0.5)
-			setVar(DIMMERSID, "LoadLevelTarget", level, childID)
-			setVar(DIMMERSID, "LoadLevelStatus", level, childID)
-			D('Zone status level: %1', level)
-
-			setLastUpdate(childID)
-		else
-			D("Zone not found: %1", i)
 		end
 	end
 
@@ -618,8 +625,10 @@ local function updateStatus(jsonResponse)
 	updateSensors(jsonResponse)
 	
 	-- MASTER STATIONS
-	local masterStations = string.format("%s,%s", jsonResponse.options.mas, jsonResponse.options.mas2)
-	setVar(MYSID, "MasterStations", masterStations, masterID)
+	if jsonResponse.options ~= nil then
+		local masterStations = string.format("%s,%s", jsonResponse.options.mas, jsonResponse.options.mas2)
+		setVar(MYSID, "MasterStations", masterStations, masterID)
+	end
 end
 
 function updateFromControllerLegacy()
@@ -629,12 +638,14 @@ function updateFromControllerLegacy()
 	local _, programs = sendDeviceCommand(COMMANDS_LEGACY_PROGRAMS)
 	local _, stations = sendDeviceCommand(COMMANDS_LEGACY_STATIONS)
 	local _, options = sendDeviceCommand(COMMANDS_LEGACY_OPTIONS)
+	local _, status = sendDeviceCommand(COMMANDS_LEGACY_STATUS)
 
 	local response = {
 		settings = json.decode(settings),
 		stations = json.decode(stations),
 		programs = json.decode(programs),
-		options = json.decode(options)
+		options = json.decode(options),
+		status =  json.decode(status)
 	}
 	D("updateFromControllerLegacy: %1", response)
 
@@ -645,7 +656,7 @@ function updateFromController(force)
 	force = force or false
 	-- discovery only on first run
 	local configured = getVarNumeric(MYSID, "Configured", 0, masterID)
-	local firstRun = configured == 0
+	local firstRun = configured == 0 or force
 
 	local _ ,json = pcall(require, "dkjson")
 
