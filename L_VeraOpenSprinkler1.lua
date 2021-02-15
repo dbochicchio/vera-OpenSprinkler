@@ -662,9 +662,9 @@ function updateFromController(force)
 
 	local status, response, jsonResponse = false, nil, nil
 	if legacyMode == 1 then
-		status, _, jsonResponse =  updateFromControllerLegacy()
+		status, _, jsonResponse = updateFromControllerLegacy()
 	else
-		status, response=  sendDeviceCommand(COMMANDS_STATUS)
+		status, response = sendDeviceCommand(COMMANDS_STATUS)
 	end
 
 	if status and (response ~= nil or jsonResponse ~=nil) then
