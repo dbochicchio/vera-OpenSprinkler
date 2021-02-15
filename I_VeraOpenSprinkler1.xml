@@ -53,5 +53,13 @@
 				return 4,0
 			</run>
 		</action>
+		<action>
+			<serviceId>urn:micasaverde-com:serviceId:HaDevice1</serviceId>
+			<name>Reconfigure</name>
+			<run>
+				VeraOpenSprinkler1.updateFromController(true)
+				return 4,0
+			</run>
+		</action>
 	</actionList>
 </implementation>

@@ -7,7 +7,7 @@
 module("L_VeraOpenSprinkler1", package.seeall)
 
 local _PLUGIN_NAME = "VeraOpenSprinkler"
-local _PLUGIN_VERSION = "1.4.5"
+local _PLUGIN_VERSION = "1.4.6"
 
 local debugMode = false
 local masterID = -1
@@ -34,6 +34,10 @@ local SCHEMAS_FREEZE					= "urn:schemas-micasaverde-com:device:FreezeSensor:1"
 
 -- COMMANDS
 local COMMANDS_STATUS					= "ja"
+local COMMANDS_LEGACY_SETTINGS			= "jc"
+local COMMANDS_LEGACY_OPTIONS			= "jo"
+local COMMANDS_LEGACY_STATIONS			= "jn"
+local COMMANDS_LEGACY_PROGRAMS			= "jp"
 local COMMANDS_SETPOWER_ZONE			= "cm"
 local COMMANDS_SETPOWER_PROGRAM			= "mp"
 local COMMANDS_CHANGEVARIABLES			= "cv"
@@ -199,38 +203,6 @@ function httpGet(url)
 		D("[HttpGet] %1 - %2", url, (response_body or ""))
 
 		return true, response_body
-	end
-end
-
-function httpGetOld(url)
-	local ltn12 = require('ltn12')
-	local http = require('socket.http')
-	local https = require('ssl.https')
-
-	local response, status, headers
-	local response_body = {}
-
-	-- Handler for HTTP or HTTPS?
-	local requestor = url:lower():find("^https:") and https or http
-	requestor.timeout = 5
-
-	response, status, headers = requestor.request{
-		method = "GET",
-		url = url .. '&rnd=' .. tostring(math.random()),
-		redirect = true,
-		headers = {
-			["Content-Type"] = "application/json; charset=utf-8",
-			["Connection"] = "keep-alive"
-		},
-		sink = ltn12.sink.table(response_body)
-	}
-
-	D("HttpGet: %1 - %2 - %3 - %4", url, (response or ""), tostring(status), tostring(table.concat(response_body or "")))
-
-	if status ~= nil and type(status) == "number" and tonumber(status) >= 200 and tonumber(status) < 300 then
-		return true, table.concat(response_body or '')
-	else
-		return false, nil
 	end
 end
 
@@ -447,58 +419,60 @@ local function discovery(jsonResponse)
 	-- SENSORS
 	D("[discovery] 3/3 in progress...")
 
-	local sensors =  {
-		{id= "rs", name = "Rain Delay",		value = jsonResponse.settings.rd,	sensorType = 1, template = CHILDREN_SENSOR},
-		{id= "s1", name = "Sensor 1",		value = jsonResponse.settings.sn1,	sensorType = tonumber(jsonResponse.options.sn1t or 0), template = CHILDREN_SENSOR},
-		{id= "s2", name = "Sensor 2",		value = jsonResponse.settings.sn2,	sensorType = tonumber(jsonResponse.options.sn2t or 0), template = CHILDREN_SENSOR},
-		{id= "0",  name = "Water Level",	value = jsonResponse.options.wl,	 sensorType = 666, template = CHILDREN_WATERLEVEL}
-	}
+	if jsonResponse.settings ~= nil and jsonResponse.options ~= nil then
+		local sensors =  {
+			{id= "rs", name = "Rain Delay",		value = jsonResponse.settings.rd,	sensorType = 1, template = CHILDREN_SENSOR},
+			{id= "s1", name = "Sensor 1",		value = jsonResponse.settings.sn1,	sensorType = tonumber(jsonResponse.options.sn1t or 0), template = CHILDREN_SENSOR},
+			{id= "s2", name = "Sensor 2",		value = jsonResponse.settings.sn2,	sensorType = tonumber(jsonResponse.options.sn2t or 0), template = CHILDREN_SENSOR},
+			{id= "0",  name = "Water Level",	value = jsonResponse.options.wl,	sensorType = 666, template = CHILDREN_WATERLEVEL}
+		}
 
-	for _, sensor in ipairs(sensors) do
-		if sensor.sensorType > 0 then
-			local childID = findChild(string.format(sensor.template, sensor.id))
+		for _, sensor in ipairs(sensors) do
+			if sensor.sensorType > 0 then
+				local childID = findChild(string.format(sensor.template, sensor.id))
 	
-			-- category 4, 7: Freeze Sensor
-			-- category 33 Flow Meter
+				-- category 4, 7: Freeze Sensor
+				-- category 33 Flow Meter
 
-			local categoryNum = 4
-			local subCategoryNum = 7
-			local deviceXml =  "D_FreezeSensor1.xml"
-			local deviceSchema = SCHEMAS_FREEZE
+				local categoryNum = 4
+				local subCategoryNum = 7
+				local deviceXml =  "D_FreezeSensor1.xml"
+				local deviceSchema = SCHEMAS_FREEZE
 
-			-- water level as HumiditySensor
-			if sensor.sensorType == 666  then
-				categoryNum = 16
-				subCategoryNum = 0
-				deviceXml =  "D_HumiditySensor1.xml"
-				deviceSchema = SCHEMAS_HUMIDITY
-			end
-
-			-- Set the program names
-			D("[discovery] %s Child Device ready to be added", sensor.name)
-			local initialVariables = string.format("%s,%s=%s\n%s,%s=%s\n",
-											"", "category_num", categoryNum,
-											"", "subcategory_num", subCategoryNum
-											)
-
-			luup.chdev.append(masterID, child_devices, string.format(sensor.template, sensor.id), sensor.name, deviceSchema, deviceXml, "", initialVariables, false)
-
-			if childID ~= 0 then
-				if luup.attr_get("category_num", childID) == nil then
-					luup.attr_set("category_num", categoryNum, childID)
-					luup.attr_set("subcategory_num", subCategoryNum, childID)
-
-					setVar(HASID, "Configured", 1, childID)
+				-- water level as HumiditySensor
+				if sensor.sensorType == 666  then
+					categoryNum = 16
+					subCategoryNum = 0
+					deviceXml =  "D_HumiditySensor1.xml"
+					deviceSchema = SCHEMAS_HUMIDITY
 				end
 
-				if childrenSameRoom then
-					luup.attr_set("room", roomID, childID)
-				end
+				-- Set the program names
+				D("[discovery] %s Child Device ready to be added", sensor.name)
+				local initialVariables = string.format("%s,%s=%s\n%s,%s=%s\n",
+												"", "category_num", categoryNum,
+												"", "subcategory_num", subCategoryNum
+												)
 
-				setLastUpdate(childID)
+				luup.chdev.append(masterID, child_devices, string.format(sensor.template, sensor.id), sensor.name, deviceSchema, deviceXml, "", initialVariables, false)
+
+				if childID ~= 0 then
+					if luup.attr_get("category_num", childID) == nil then
+						luup.attr_set("category_num", categoryNum, childID)
+						luup.attr_set("subcategory_num", subCategoryNum, childID)
+
+						setVar(HASID, "Configured", 1, childID)
+					end
+
+					if childrenSameRoom then
+						luup.attr_set("room", roomID, childID)
+					end
+
+					setLastUpdate(childID)
+				end
+			else
+				D("[discovery] %s Child Device ignored: %s", sensor.name, sensorType)
 			end
-		else
-			D("[discovery] %s Child Device ignored: %s", sensor.name, sensorType)
 		end
 	end
 
@@ -510,11 +484,15 @@ local function discovery(jsonResponse)
 end
 
 local function updateSensors(jsonResponse)
+	if jsonResponse.settings == nil or jsonResponse.options == nil then
+		return false
+	end
+
 	local sensors =  {
 		{id= "rs", name = "Rain Delay",		value = jsonResponse.settings.rd,	sensorType = 1, template = CHILDREN_SENSOR},
 		{id= "s1", name = "Sensor 1",		value = jsonResponse.settings.sn1,	sensorType = tonumber(jsonResponse.options.sn1t or 0), template = CHILDREN_SENSOR},
 		{id= "s2", name = "Sensor 2",		value = jsonResponse.settings.sn2,	sensorType = tonumber(jsonResponse.options.sn2t or 0), template = CHILDREN_SENSOR},
-		{id= "0",  name = "Water Level",	value = jsonResponse.options.wl,	 sensorType = 666, template = CHILDREN_WATERLEVEL}
+		{id= "0",  name = "Water Level",	value = jsonResponse.options.wl,	sensorType = 666, template = CHILDREN_WATERLEVEL}
 	}
 
 	for _, sensor in ipairs(sensors) do
@@ -538,8 +516,6 @@ local function updateSensors(jsonResponse)
 --	- sn1on/sn1of: Sensor 1 delayed on time and delayed off time (unit is minutes).
 --	- sn2t/sn2o: Sensor 2 type and sensor 2 option (similar to sn1t and sn1o, for OS 3.0 only).
 --	- sn2on/sn2of: Sensor 2 delayed on time and delayed off time (unit is minutes).
-
-
 end
 
 local function updateStatus(jsonResponse)
@@ -646,8 +622,28 @@ local function updateStatus(jsonResponse)
 	setVar(MYSID, "MasterStations", masterStations, masterID)
 end
 
-function updateFromController()
-	-- discovery only on first Running
+function updateFromControllerLegacy()
+	local _ ,json = pcall(require, "dkjson")
+
+	local _, settings = sendDeviceCommand(COMMANDS_LEGACY_SETTINGS)
+	local _, programs = sendDeviceCommand(COMMANDS_LEGACY_PROGRAMS)
+	local _, stations = sendDeviceCommand(COMMANDS_LEGACY_STATIONS)
+	local _, options = sendDeviceCommand(COMMANDS_LEGACY_OPTIONS)
+
+	local response = {
+		settings = json.decode(settings),
+		stations = json.decode(stations),
+		programs = json.decode(programs),
+		options = json.decode(options)
+	}
+	D("updateFromControllerLegacy: %1", response)
+
+	return true, "", response
+end
+
+function updateFromController(force)
+	force = force or false
+	-- discovery only on first run
 	local configured = getVarNumeric(MYSID, "Configured", 0, masterID)
 	local firstRun = configured == 0
 
@@ -660,11 +656,21 @@ function updateFromController()
 		return
 	end
 
-	D("updateFromController started: %1", firstRun)
-	
-	local status, response = sendDeviceCommand(COMMANDS_STATUS)
-	if status and response ~= nil then
-		local jsonResponse, _, err = json.decode(response)
+	-- suppor for legay mode - 1.4.6+
+	local legacyMode = getVarNumeric(MYSID, "LegacyMode", 0, masterID)
+	D("updateFromController started: %1 - legacy mode: %2", firstRun, legacyMode)
+
+	local status, response, jsonResponse = false, nil, nil
+	if legacyMode == 1 then
+		status, _, jsonResponse =  updateFromControllerLegacy()
+	else
+		status, response=  sendDeviceCommand(COMMANDS_STATUS)
+	end
+
+	if status and (response ~= nil or jsonResponse ~=nil) then
+		if jsonResponse == nil then
+			jsonResponse, _, err = json.decode(response)
+		end
 
 		if err or jsonResponse == nil then
 			D('Got a nil response from API or error: %1, %2', err, jsonResponse == nil)
@@ -677,7 +683,7 @@ function updateFromController()
 			updateStatus(jsonResponse)
 		end
 	else
-		L("updateFromController error: %1", response)
+		L("updateFromController error: %1 - %2 - %3", status, response, jsonResponse)
 	end
 	
 	D("updateFromController completed")
@@ -821,6 +827,7 @@ function startPlugin(devNum)
 	initVar(SWITCHSID, "Status", "-1", masterID)
 
 	initVar(MYSID, "DebugMode", "0", masterID)
+	initVar(MYSID, "LegacyMode", "0", masterID)
 
 	initVar(MYSID, "Password", "a6d82bced638de3def1e9bbb4983225c", masterID) -- opendoor
 	initVar(MYSID, "Refresh", "15", masterID)
