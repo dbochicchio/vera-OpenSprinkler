@@ -1,5 +1,6 @@
-# OpenSprinkler plug-in for Vera
-Completely new and rewritten plug-in to interface an OpenSprinkler to a Vera or openLuup system.
+# OpenSprinkler plug-in for Vera and openLuup
+This is a completely new and rewritten plug-in to interface an OpenSprinkler to a Vera or openLuup system.
+
 It is able to discovery and control:
 - Programs (turn on/off)
 - Zones (turn on/off, length in minutes using a dimmer)
@@ -17,11 +18,14 @@ In particular, I need help with
 
 # Installation via MiOS App Store
 The files are available via MiOS App Store. Plug-in ID is 9301 if you want to install it manually.
+
 Go to your Vera web interface, then Apps, Install Apps and search for "Vera OpenSprinkler Plug-in". Click Details, then Install.
 
 # Manual Installation
 To install, simply upload the files in this directory (except readme) using Vera's feature (Go to *Apps*, then *Develop Apps*, then *Luup files* and select *Upload*) and then create a new device under Vera.
+
 To create a new device, got to *Apps*, then *Develops*, then *Create device*.
+
 Every time you want to map a new controller, just repeat this operation.
 
 - Upnp Device Filename/Device File: *D_VeraOpenSprinkler1.xml*
@@ -30,7 +34,9 @@ Every time you want to map a new controller, just repeat this operation.
 - Parent Device: none
 
 After installation, ensure to change the "IP" variable under the master device (if not specified before).
+
 Password is set to "opendoor" (in MD5 format), but you need to change it (see next part).
+
 Reload your Vera's engine (ie by executing *luup.reload()* in *App*, *Develop apps*, *Test luup code*) and wait for you zones and programs to appear.
 
 # Password
@@ -64,7 +70,9 @@ Master device has support to set Rain Delay via *urn:bochicchio-com:serviceId:Op
 
 # Discovery of new devices
 Starting from version 1.3, discovery of devices is done only on first run. If you want to force it again, set *Configured* to *0*.
+
 Discovery is automatically performed each time the plug-in version is updated.
+
 You can also force it by calling *Reconfigure* on service *urn:micasaverde-com:serviceId:HaDevice1*.
 
 ```
