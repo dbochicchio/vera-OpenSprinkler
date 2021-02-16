@@ -30,6 +30,7 @@ local HUMIDITYSID						= "urn:micasaverde-com:serviceId:HumiditySensor1"
 local SECURITYSID						= "urn:micasaverde-com:serviceId:SecuritySensor1"
 
 local SCHEMAS_BINARYLIGHT				= "urn:schemas-upnp-org:device:BinaryLight:1"
+local SCHEMAS_WATERVALVE				= "urn:schemas-micasaverde-com:device:WaterValve:1"
 local SCHEMAS_DIMMER					= "urn:schemas-upnp-org:device:DimmableLight:1"
 local SCHEMAS_HUMIDITY					= "urn:schemas-micasaverde-com:device:HumiditySensor:1"
 local SCHEMAS_FREEZE					= "urn:schemas-micasaverde-com:device:FreezeSensor:1"
@@ -233,7 +234,7 @@ local function findChild(childID)
 		end
 	end
 
-	D("Cannot find child: %1 - %2", masterID, childID)
+	D("[findChild] Not found %2 for master #%1", masterID, childID)
 	return 0
 end
 
@@ -279,8 +280,7 @@ local function sendDeviceCommand(cmd, params)
 end
 
 local function discovery(jsonResponse)
-	D("[discovery] in progress...")
-	D("[discovery] valid jsonResponse: %1", jsonResponse ~= nil)
+	L("[discovery] in progress... - valid jsonResponse: %1", jsonResponse ~= nil)
 	if (jsonResponse == nil) then return end
 
 	local childrenSameRoom = getVarNumeric(HASID, "ChildrenSameRoom", 1, masterID) == 1
@@ -289,7 +289,7 @@ local function discovery(jsonResponse)
 	D("[discovery] ChildrenSameRoom: %1, #%2", childrenSameRoom, roomID)
 
 	-- zones
-	D("[discovery] 1/3 in progress...")
+	L("[discovery] 1/3 in progress...")
 	if jsonResponse.stations and type(jsonResponse.stations.snames) == "table" then
 		local disabledStationsFlag = tonumber(jsonResponse.stations.stn_dis[1] or "0")
 
@@ -325,7 +325,7 @@ local function discovery(jsonResponse)
 
 					setVar(MYSID, "ZoneID", (zoneID-1), childID)
 
-					if luup.attr_get("category_num", childID) == nil or tostring(luup.attr_get("category_num", childID) or "0") ~= "2" then
+					if luup.attr_get("category_num", childID) == nil or tostring(luup.attr_get("subcategory_num", childID) or "0") == "0" then
 						luup.attr_set("category_num", "2", childID)			-- Dimmer
 						luup.attr_set("subcategory_num", "7", childID)		-- Water Valve
 						setVar(HASID, "Configured", 1, childID)
@@ -352,7 +352,7 @@ local function discovery(jsonResponse)
 	D("[discovery] 1/3 completed...")
 
 	-- programs
-	D("[discovery] 2/3 in progress...")
+	L("[discovery] 2/3 in progress...")
 	local programs = jsonResponse.programs and tonumber(jsonResponse.programs.nprogs) or 0
 
 	if programs > 0 then
@@ -376,7 +376,7 @@ local function discovery(jsonResponse)
 									"", "subcategory_num", 7
 									)
 
-			luup.chdev.append(masterID, child_devices, string.format(CHILDREN_PROGRAM, programID), programName, SCHEMAS_BINARYLIGHT, "D_WaterValve1.xml", "", initialVariables, false)
+			luup.chdev.append(masterID, child_devices, string.format(CHILDREN_PROGRAM, programID), programName, SCHEMAS_WATERVALVE, "D_WaterValve1.xml", "", initialVariables, false)
 
 			if childID ~= 0 then
 				D("[discovery] Set Name for Device %3 - Program #%1: %2", programID, programName, childID)
@@ -403,7 +403,7 @@ local function discovery(jsonResponse)
 					D("[discovery] Setting zone data FAILED: %1 - %2", childID, programID)
 				end
 
-				if luup.attr_get("category_num", childID) == nil or tostring(luup.attr_get("category_num", childID) or "0") ~= "3" then
+				if luup.attr_get("category_num", childID) == nil or tostring(luup.attr_get("category_num", childID) or "0") == "0" then
 					luup.attr_set("category_num", "3", childID)			-- Switch
 					luup.attr_set("subcategory_num", "7", childID)		-- Water Valve
 
@@ -424,7 +424,7 @@ local function discovery(jsonResponse)
 	D("[discovery] 2/3 completed...")
 
 	-- SENSORS
-	D("[discovery] 3/3 in progress...")
+	L("[discovery] 3/3 in progress...")
 
 	if jsonResponse.settings ~= nil and jsonResponse.options ~= nil then
 		local sensors =  {
@@ -487,7 +487,7 @@ local function discovery(jsonResponse)
 
 	luup.chdev.sync(masterID, child_devices)
 
-	D("[discovery] completed...")
+	L("[discovery] completed - children sync'ed...")
 end
 
 local function updateSensors(jsonResponse)
@@ -606,7 +606,7 @@ local function updateStatus(jsonResponse)
 					setVerboseDisplay("Zone: " .. ((state == 1) and "Running" or "Idle"), nil, childID)
 					D("[updateStatus] Zone: %1 - Status: %2", i, state)
 				else
-					D("[updateStatus] Zone Skipped for #%1: %2 - Status: %3 - %4", childID, i, state, currentState)
+					D("[updateStatus] Zone Update Skipped for #%1: %2 - Status: %3 - %4", childID, i, state, currentState)
 				end
 
 				-- update level
@@ -781,7 +781,7 @@ function actionPowerInternal(state, seconds, devNum)
 		end
 	end
 
-	D("actionPower: %1 - %2", devNum, zoneIndex or programIndex or "-1")
+	D("[actionPower] #%1 - %2", devNum, zoneIndex or programIndex or "-1")
 	if sendCommand then
 		local result, response = sendDeviceCommand(cmd, cmdParams)
 
@@ -789,10 +789,10 @@ function actionPowerInternal(state, seconds, devNum)
 			setVar(SWITCHSID, "Status", state and "1" or "0", devNum)
 		else
 			deviceMessage(devNum, 'Unable to send command to controller', true)
-			L("Switch power error: %1 - %2 - %3", devNum, state, response)
+			L("[actionPower] Switch power error: %1 - %2 - %3", devNum, state, response)
 		end
 	else
-		D("actionPower: Command skipped")
+		D("[actionPower] Command skipped")
 	end
 
 	deviceMessage(devNum, 'Turning ' .. (state and "on" or "off"), false)
@@ -800,14 +800,14 @@ end
 
 function actionPowerStopStation(devNum)
 	local v = getVar(MYSID, "Zones", ",", devNum)
-	D("actionPowerStopStation: %1 - %2", devNum, v)
+	D("[actionPowerStopStation] %1 - %2", devNum, v)
 	local zones = split(v, ",")
 	if zones ~= nil and #zones > 0 then
 		for i=1,#zones-1 do -- ignore the last one
 			if zones[i] ~= nil and tonumber(zones[i]) > 0 then -- if value > 0, then the zones is inside this program
 				local childID = findChild(string.format(CHILDREN_ZONE, i))
 				if childID > 0 then
-					D("actionPowerStopStation: stop zone %1 - device %2", i, childID)
+					D("[actionPowerStopStation] stop zone %1 - device %2", i, childID)
 					actionPowerInternal(false, 0, childID)
 				end
 			end
