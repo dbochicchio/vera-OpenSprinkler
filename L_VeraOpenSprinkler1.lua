@@ -286,12 +286,11 @@ local function discovery(jsonResponse)
 	local childrenSameRoom = getVarNumeric(HASID, "ChildrenSameRoom", 1, masterID) == 1
 	local roomID = tonumber(luup.attr_get("room", masterID))
 	local child_devices = luup.chdev.start(masterID)
-	D("ChildrenSameRoom: %1, #%2", childrenSameRoom, roomID)
+	D("[discovery] ChildrenSameRoom: %1, #%2", childrenSameRoom, roomID)
 
 	-- zones
 	D("[discovery] 1/3 in progress...")
 	if jsonResponse.stations and type(jsonResponse.stations.snames) == "table" then
-	luup.log(jsonResponse.stations)
 		local disabledStationsFlag = tonumber(jsonResponse.stations.stn_dis[1] or "0")
 
 		-- get zones
@@ -299,14 +298,14 @@ local function discovery(jsonResponse)
 			-- get disabled state
 			local disabled = (disabledStationsFlag / math.pow(zoneID + 1, 2) ) % 2 >= 1
 			
-			D("Discovery: Zone %1 - Name: %2 - Disabled: %3", zoneID, zoneName, disabled)
+			D("[discovery] Zone %1 - Name: %2 - Disabled: %3", zoneID, zoneName, disabled)
 
 			if not disabled then
 				local childID = findChild(string.format(CHILDREN_ZONE, zoneID))
 
 				-- Set the zone name
 				-- TODO: if master valve, create as switch, not dimmer
-				D("Zone Device ready to be added: %1", zoneID)
+				D("[discovery] Adding zone: %1 - #%2", zoneID, childID)
 				local initialVariables = string.format("%s,%s=%s\n%s,%s=%s\n%s,%s=%s\n",
 											MYSID, "ZoneID", (zoneID-1),
 											"", "category_num", 2,
@@ -315,7 +314,7 @@ local function discovery(jsonResponse)
 				luup.chdev.append(masterID, child_devices, string.format(CHILDREN_ZONE, zoneID), zoneName, SCHEMAS_DIMMER, "D_DimmableLight1.xml", "", initialVariables, false)
 
 				if childID ~= 0 then
-					D("Set Name for Device %3 - Zone #%1: %2", zoneID, zoneName, childID)
+					D("[discovery] Zone %1 - #%2: %3", childID, zoneID, zoneName)
 
 					local overrideName = getVarNumeric(MYSID, "UpdateNameFromController", 1, childID) == 1
 					local oldName =	luup.attr_get("name", childID)
@@ -326,7 +325,7 @@ local function discovery(jsonResponse)
 
 					setVar(MYSID, "ZoneID", (zoneID-1), childID)
 
-					if luup.attr_get("category_num", childID) == nil or tostring(luup.attr_get("subcategory_num", childID) or "0") ~= "2" then
+					if luup.attr_get("category_num", childID) == nil or tostring(luup.attr_get("category_num", childID) or "0") ~= "2" then
 						luup.attr_set("category_num", "2", childID)			-- Dimmer
 						luup.attr_set("subcategory_num", "7", childID)		-- Water Valve
 						setVar(HASID, "Configured", 1, childID)
@@ -361,8 +360,6 @@ local function discovery(jsonResponse)
 		for i = 1, programs do
 			local programID = i-1
 
-			--local counter = 0
-			--for _, _ in ipairs(jsonResponse.programs.pd[i]) do counter = counter + 1 end
 			local counter = table.getn(jsonResponse.programs.pd[i])
 			local programName = jsonResponse.programs.pd[i][counter] -- last element in the array
 
@@ -371,7 +368,7 @@ local function discovery(jsonResponse)
 			local childID = findChild(string.format(CHILDREN_PROGRAM, programID))
 
 			-- Set the program name
-			D("[discovery] Program Device ready to be added: %1", programID)
+			D("[discovery] Adding program: %1 - #%2", programID, childID)
 
 			local initialVariables = string.format("%s,%s=%s\n%s,%s=%s\n%s,%s=%s\n",
 									MYSID, "ZoneID", (programID-1),
@@ -379,7 +376,7 @@ local function discovery(jsonResponse)
 									"", "subcategory_num", 7
 									)
 
-			luup.chdev.append(masterID, child_devices, string.format(CHILDREN_PROGRAM, programID), programName, SCHEMAS_BINARYLIGHT, "D_BinaryLight1.xml", "", initialVariables, false)
+			luup.chdev.append(masterID, child_devices, string.format(CHILDREN_PROGRAM, programID), programName, SCHEMAS_BINARYLIGHT, "D_WaterValve1.xml", "", initialVariables, false)
 
 			if childID ~= 0 then
 				D("[discovery] Set Name for Device %3 - Program #%1: %2", programID, programName, childID)
@@ -406,7 +403,7 @@ local function discovery(jsonResponse)
 					D("[discovery] Setting zone data FAILED: %1 - %2", childID, programID)
 				end
 
-				if luup.attr_get("category_num", childID) == nil or tostring(luup.attr_get("subcategory_num", childID) or "0") ~= "3" then
+				if luup.attr_get("category_num", childID) == nil or tostring(luup.attr_get("category_num", childID) or "0") ~= "3" then
 					luup.attr_set("category_num", "3", childID)			-- Switch
 					luup.attr_set("subcategory_num", "7", childID)		-- Water Valve
 
@@ -458,7 +455,7 @@ local function discovery(jsonResponse)
 				end
 
 				-- Set the program names
-				D("[discovery] %s Child Device ready to be added", sensor.name)
+				D("[discovery] Adding device %1 - #%2", sensor.name, childID)
 				local initialVariables = string.format("%s,%s=%s\n%s,%s=%s\n",
 												"", "category_num", categoryNum,
 												"", "subcategory_num", subCategoryNum
@@ -481,7 +478,7 @@ local function discovery(jsonResponse)
 					setLastUpdate(childID)
 				end
 			else
-				D("[discovery] %1 Child Device ignored: %2", sensor.name, sensorType)
+				D("[discovery] Child Device (%1) ignored: %2", sensor.name, sensorType)
 			end
 		end
 	end
@@ -529,16 +526,16 @@ local function updateSensors(jsonResponse)
 end
 
 local function updateStatus(jsonResponse)
-	D("Update status in progress...")
+	D("[updateStatus] in progress...")
 
 	if jsonResponse == nil then
-		D("Update status: nil response")
+		D("[updateStatus]: nil response")
 		return
 	end
 
 	-- STATUS
 	local state = tonumber(jsonResponse and jsonResponse.settings and jsonResponse.settings.en or 0)
-	D("Controller status: %1, %2", state, state == 1 and "1" or "0")
+	D("[updateStatus] Controller status: %1, %2", state, state == 1 and "1" or "0")
 	setVar(SWITCHSID, "Status", state == 1 and "1" or "0", masterID)
 
 	-- RAIN DELAY: if 0, disabled, otherwise raindelay stop time
@@ -546,7 +543,7 @@ local function updateStatus(jsonResponse)
 	setVar(MYSID, "RainDelay", rainDelay, masterID)
 	local rainDelayDate = formatDateTime(jsonResponse.settings.rdst)
 
-	D("Update status - Status: %1 - RainDelay: %2 - %3", state, rainDelay, rainDelayDate)
+	D("[updateStatus] Status: %1 - RainDelay: %2 - %3", state, rainDelay, rainDelayDate)
 
 	setVerboseDisplay(("Controller: " .. (state == 1 and "ready" or "disabled")),
 					 ("RainDelay: " .. (rainDelay == 0 and "disabled" or ("enabled until " .. rainDelayDate))),
@@ -562,7 +559,7 @@ local function updateStatus(jsonResponse)
 			local programIndex = i-2
 			local childID = findChild(string.format(CHILDREN_PROGRAM, programIndex))
 			if childID > 0 then
-				D("Program Status for %1: %2", childID, programs[i][1])
+				D("[updateStatus] Program Status for %1: %2", childID, programs[i][1])
 				local state = tonumber(programs[i][1] or "0") >= 1 and 1 or 0
 
 				-- Check to see if program status changed
@@ -574,16 +571,16 @@ local function updateStatus(jsonResponse)
 
 					setVerboseDisplay("Program: " .. ((state == 1) and "Running" or "Idle"), nil, childID)
 
-					D("Update Program: %1 - Status: %2", iprogramIndex, state)
+					D("[updateStatus] Program: %1 - Status: %2", iprogramIndex, state)
 				else
-					D("Update Program Skipped for #%1: %2 - Status: %3 - %4", childID, programIndex, state, currentState)
+					D("[updateStatus] Program Skipped for #%1: %2 - Status: %3 - %4", childID, programIndex, state, currentState)
 				end
 
 				setLastUpdate(childID)
 			end
 		end
 	else
-		D("No programs defined, update skipped")
+		D("[updateStatus] No programs defined, update skipped")
 	end
 
 	-- ZONE STATUS
@@ -607,23 +604,23 @@ local function updateStatus(jsonResponse)
 					setVar(SWITCHSID, "Status", (state == 1) and "1" or "0", childID)
 
 					setVerboseDisplay("Zone: " .. ((state == 1) and "Running" or "Idle"), nil, childID)
-					D("Update Zone: %1 - Status: %2", i, state)
+					D("[updateStatus] Zone: %1 - Status: %2", i, state)
 				else
-					D("Update Zone Skipped for #%1: %2 - Status: %3 - %4", childID, i, state, currentState)
+					D("[updateStatus] Zone Skipped for #%1: %2 - Status: %3 - %4", childID, i, state, currentState)
 				end
 
 				-- update level
 				local ps = jsonResponse.settings.ps[i]
-				D('Zone status: %1', ps)
+				D('[updateStatus] Zone: %1', ps)
 
 				local level = math.floor(tonumber(ps[2]) / 60  + 0.5)
 				setVar(DIMMERSID, "LoadLevelTarget", level, childID)
 				setVar(DIMMERSID, "LoadLevelStatus", level, childID)
-				D('Zone status level: %1', level)
+				D('[updateStatus] Zone level: %1', level)
 
 				setLastUpdate(childID)
 			else
-				D("Zone not found: %1", i)
+				D("[updateStatus] Zone not found: %1", i)
 			end
 		end
 	end
@@ -660,10 +657,13 @@ function updateFromControllerLegacy()
 end
 
 function updateFromController(force)
-	force = force or false
+	force = tostring(force or false) == "true"
+
 	-- discovery only on first run
-	local configured = getVarNumeric(MYSID, "Configured", 0, masterID)
-	local firstRun = configured == 0 or force
+	local configured = getVarNumeric(HASID, "Configured", 0, masterID)
+	-- suppor for legay mode - 1.4.6+
+	local legacyMode = getVarNumeric(MYSID, "LegacyMode", 0, masterID)
+	D("[updateFromController] Configured: %1 - Legacy mode: %2 - Forced: %3", configured, legacyMode, force)
 
 	local _ ,json = pcall(require, "dkjson")
 
@@ -673,10 +673,6 @@ function updateFromController(force)
 		luup.set_failure( 1, devNum)
 		return
 	end
-
-	-- suppor for legay mode - 1.4.6+
-	local legacyMode = getVarNumeric(MYSID, "LegacyMode", 0, masterID)
-	D("updateFromController started: %1 - legacy mode: %2", firstRun, legacyMode)
 
 	local status, response, jsonResponse = false, nil, nil
 	if legacyMode == 1 then
@@ -691,9 +687,9 @@ function updateFromController(force)
 		end
 
 		if err or jsonResponse == nil then
-			D('Got a nil response from API or error: %1, %2', err, jsonResponse == nil)
+			D('[updateFromController] nil response or error: %1, %2', err, jsonResponse == nil)
 		else
-			if firstRun then
+			if configure == 0 or force then
 				discovery(jsonResponse)
 				setVar(HASID, "Configured", 1, masterID)
 			end
@@ -701,16 +697,16 @@ function updateFromController(force)
 			updateStatus(jsonResponse)
 		end
 	else
-		L("updateFromController error: %1 - %2 - %3", status, response, jsonResponse)
+		L("[updateFromController] error: %1 - %2 - %3", status, response, jsonResponse)
 	end
 	
-	D("updateFromController completed")
+	D("[updateFromController] completed")
 
 	-- schedule again
 	local refresh = getVarNumeric(MYSID, "Refresh", 10, masterID)
 	luup.call_delay("updateFromController", tonumber(refresh), false)
 
-	D("Next refresh in " .. tostring(refresh) .. " secs")
+	D("[updateFromController] Next refresh in " .. tostring(refresh) .. " secs")
 end
 
 function actionPower(state, devNum)
