@@ -7,11 +7,13 @@
 module("L_VeraOpenSprinkler1", package.seeall)
 
 local _PLUGIN_NAME = "VeraOpenSprinkler"
-local _PLUGIN_VERSION = "1.4.6"
+local _PLUGIN_VERSION = "1.50"
 
 local debugMode = false
 local masterID = -1
 local openLuup = false
+local dateFormat = "yy-mm-dd"
+local timeFormat = "24hr"
 
 local taskHandle = -1
 local TASK_ERROR = 2
@@ -176,6 +178,13 @@ local function initVar(sid, name, dflt, devNum)
 		return tostring(dflt)
 	end
 	return currVal
+end
+
+local function formatDateTime(v)
+	return string.format("%s %s",
+		os.date(dateFormat:gsub("yy", "%%Y"):gsub("mm", "%%m"):gsub("dd", "%%d"), v),
+		os.date(timeFormat == "12hr" and "%I:%M:%S%p" or "%H:%M:%S", v)
+		)
 end
 
 function httpGet(url)
@@ -472,7 +481,7 @@ local function discovery(jsonResponse)
 					setLastUpdate(childID)
 				end
 			else
-				D("[discovery] %s Child Device ignored: %s", sensor.name, sensorType)
+				D("[discovery] %1 Child Device ignored: %2", sensor.name, sensorType)
 			end
 		end
 	end
@@ -535,9 +544,7 @@ local function updateStatus(jsonResponse)
 	-- RAIN DELAY: if 0, disabled, otherwise raindelay stop time
 	local rainDelay = tonumber(jsonResponse.settings.rdst)
 	setVar(MYSID, "RainDelay", rainDelay, masterID)
-
-	-- TODO: use local format and luup.timezone for time/date format
-	local rainDelayDate = os.date("%H:%M:%S (%a %d %b %Y)", jsonResponse.settings.rdst)
+	local rainDelayDate = formatDateTime(jsonResponse.settings.rdst)
 
 	D("Update status - Status: %1 - RainDelay: %2 - %3", state, rainDelay, rainDelayDate)
 
@@ -829,9 +836,18 @@ function startPlugin(devNum)
 
 	L("Plugin starting: %1 - %2", _PLUGIN_NAME, _PLUGIN_VERSION)
 
+	-- date format support
+	dateFormat = luup.attr_get("date_format", 0) or "yy-mm-dd"
+	timeFormat = luup.attr_get("timeFormat", 0) or "24hr"
+
 	-- detect OpenLuup
-	openLuup = luup.openLuup ~= nil
-	D("Running on OpenLuup: %1", openLuup)
+	for k,v in pairs(luup.devices) do
+		if v.device_type == "openLuup" then
+			openLuup = true
+			BIN_PATH = "/etc/cmh-ludl/VeraAlexa"
+		end
+	end
+	D(devNum, "OpenLuup: %1", openLuup)
 
 	-- init
 	initVar(SWITCHSID, "Target", "0", masterID)
