@@ -190,7 +190,7 @@ end
 
 function httpGet(url)
 	local timeout = 5
-	local fileName = '/tmp/opensprinkler.json'
+	local fileName = "/tmp/opensprinkler_" .. tostring(math.random(0, 999999)) .. ".json"
 
 	local httpCmd = string.format("curl -m %d -o '%s' -k -L -H 'Content-type: application/json' '%s'",
 								timeout,
@@ -308,10 +308,10 @@ local function discovery(jsonResponse)
 				D("[discovery] Adding zone: %1 - #%2", zoneID, childID)
 				local initialVariables = string.format("%s,%s=%s\n%s,%s=%s\n%s,%s=%s\n",
 											MYSID, "ZoneID", (zoneID-1),
-											"", "category_num", 2,
+											"", "category_num", 3,
 											"", "subcategory_num", 7
 											)
-				luup.chdev.append(masterID, child_devices, string.format(CHILDREN_ZONE, zoneID), zoneName, SCHEMAS_DIMMER, "D_DimmableLight1.xml", "", initialVariables, false)
+				luup.chdev.append(masterID, child_devices, string.format(CHILDREN_ZONE, zoneID), zoneName, SCHEMAS_DIMMER, "D_VeraOpenSprinklerStation1.xml", "", initialVariables, false)
 
 				if childID ~= 0 then
 					D("[discovery] Zone %1 - #%2: %3", childID, zoneID, zoneName)
@@ -324,9 +324,10 @@ local function discovery(jsonResponse)
 					end
 
 					setVar(MYSID, "ZoneID", (zoneID-1), childID)
+					luup.attr_set("device_json", "D_VeraOpenSprinklerStation1.json", childID) -- fix it
 
-					if luup.attr_get("category_num", childID) == nil or tostring(luup.attr_get("subcategory_num", childID) or "0") == "0" then
-						luup.attr_set("category_num", "2", childID)			-- Dimmer
+					if tostring(luup.attr_get("category_num", childID) or "0") ~= "3" or tostring(luup.attr_get("subcategory_num", childID) or "0") == "0" then
+						luup.attr_set("category_num", "3", childID)			-- Dimmer
 						luup.attr_set("subcategory_num", "7", childID)		-- Water Valve
 						setVar(HASID, "Configured", 1, childID)
 
@@ -403,7 +404,7 @@ local function discovery(jsonResponse)
 					D("[discovery] Setting zone data FAILED: %1 - %2", childID, programID)
 				end
 
-				if luup.attr_get("category_num", childID) == nil or tostring(luup.attr_get("category_num", childID) or "0") == "0" then
+				if tostring(luup.attr_get("category_num", childID) or "0") ~= "3" or tostring(luup.attr_get("category_num", childID) or "0") == "0" then
 					luup.attr_set("category_num", "3", childID)			-- Switch
 					luup.attr_set("subcategory_num", "7", childID)		-- Water Valve
 
@@ -689,7 +690,7 @@ function updateFromController(force)
 		if err or jsonResponse == nil then
 			D('[updateFromController] nil response or error: %1, %2', err, jsonResponse == nil)
 		else
-			if configure == 0 or force then
+			if configured == 0 or force then
 				discovery(jsonResponse)
 				setVar(HASID, "Configured", 1, masterID)
 			end
@@ -795,7 +796,7 @@ function actionPowerInternal(state, seconds, devNum)
 		D("[actionPower] Command skipped")
 	end
 
-	deviceMessage(devNum, 'Turning ' .. (state and "on" or "off"), false)
+	deviceMessage(devNum, 'Turning ' .. (state and string.format("on for %s seconds", seconds) or "off"), false)
 end
 
 function actionPowerStopStation(devNum)
@@ -857,10 +858,11 @@ function startPlugin(devNum)
 	initVar(MYSID, "MaxZones", "32", masterID)
 
 	-- categories
-	if luup.attr_get("category_num", masterID) == nil or tostring(luup.attr_get("subcategory_num", masterID) or 0) == "0" then
-		luup.attr_set("category_num", "3", masterID)			-- Switch
-		luup.attr_set("subcategory_num", "7", masterID)			-- Water Valve
-		luup.attr_set("device_file", "D_VeraOpenSprinkler1.xml", masterID) -- fix it at startup
+	if luup.attr_get("category_num", masterID) == nil or tostring(luup.attr_get("subcategory_num", masterID) or 0) == "0" or luup.attr_get("device_json") ~= "D_WaterValve1.json" then
+		luup.attr_set("category_num", "3", masterID)						-- Switch
+		luup.attr_set("subcategory_num", "7", masterID)						-- Water Valve
+		luup.attr_set("device_file", "D_VeraOpenSprinkler1.xml", masterID)	-- fix it at startup
+		luup.attr_set("device_json", "D_WaterValve1.json", masterID)		-- fix it at startup
 	end
 
 	-- IP configuration

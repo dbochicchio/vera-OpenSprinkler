@@ -1,7 +1,7 @@
 # OpenSprinkler plug-in for Vera and openLuup
 This is a completely new and rewritten plug-in to interface an OpenSprinkler to a Vera or openLuup system.
 
-It is able to discovery and control:
+It can discovery and control:
 - Programs (turn on/off)
 - Zones (turn on/off, length in minutes using a dimmer)
 - Rain Delay and other attached sensors
@@ -37,13 +37,13 @@ After installation, ensure to change the "IP" variable under the master device (
 
 Password is set to "opendoor" (in MD5 format), but you need to change it (see next part).
 
-Reload your Vera's engine (ie by executing *luup.reload()* in *App*, *Develop apps*, *Test luup code*) and wait for you zones and programs to appear.
+Reload your Vera's engine (ie by executing *luup.reload()* in *App*, *Develop apps*, *Test luup code*) and wait for your zones and programs to appear.
 
 # Password
 OpenSprinkler use MD5-hashed passwords. Ensure to use a tool (such as http://www.md5.cz/) and save the generated password in the corresponding variable.
 
 # Legacy mode
-This plug-in is suited for the latest version. If you're stuck on version >= 2.1.3 and < 2.1.9, try to set *LegacyMode* variable under master device to 1 and then do a Luup reload.
+This plug-in is suited for the latest version. If you're stuck on version >= 2.1.3 and < 2.1.9, try to set *LegacyMode* variable under the master device to 1 and then do a Luup reload.
 
 # Variables
 ## For master device
@@ -62,14 +62,14 @@ Sensore are standard security service device, so you can get its value using the
 # Use in code
 Master, Zones and Program devices implements standard switch action: *urn:upnp-org:serviceId:SwitchPower1 SetTarget*
 
-Master, Zones and Program devices implements standard HA action for toggle state: *urn:micasaverde-com:serviceId:HaDevice1 ToggleState*
+Master, Zones and Program devices implement standard HA action for toggle state: *urn:micasaverde-com:serviceId:HaDevice1 ToggleState*
 
 Zone devices implements standard dimmers action: *urn:upnp-org:serviceId:SwitchPower1 SetTarget*
 
 Master device has support to set Rain Delay via *urn:bochicchio-com:serviceId:OpenSprinkler1 SetRainDelay* passing *newRainDelay* (date and time in epoch format)
 
 # Discovery of new devices
-Starting from version 1.3, discovery of devices is done only on first run. If you want to force it again, set *Configured* to *0*.
+Starting from version 1.3, discovery of devices is done only on the first run. If you want to force it again, set *Configured* to *0*.
 
 Discovery is automatically performed each time the plug-in version is updated.
 
@@ -80,7 +80,7 @@ luup.call_action("urn:micasaverde-com:serviceId:HaDevice1", "Reconfigure", {}, m
 ```
 
 # Debug
-If you want to see more debug info, set *DebugMode* variable on master device to *1*. No need to reload luup engine. Just set back to 0 if you want to disable verbose logging.
+If you want to see more debug info, set *DebugMode* variable on the master device to *1*. No need to reload luup engine. Just set back to 0 if you want to disable verbose logging.
 
 # OpenLuup/ALTUI
 The devices are working and supported under OpenLuup and AltUI. In this case, if you're using an old version of AltUI, just be sure the get the base service file from Vera (automatically done if you have the Vera Bridge installed).
