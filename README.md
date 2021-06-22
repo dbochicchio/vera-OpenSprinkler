@@ -33,10 +33,10 @@ Every time you want to map a new controller, just repeat this operation.
 
 - Upnp Device Filename/Device File: *D_VeraOpenSprinkler1.xml*
 - Upnp Implementation Filename/Implementation file: *I_VeraOpenSprinkler1.xml*
-- IP address: the OpenSprinkler Controller internal IP address (host name not supported) and port (omit if 80, otherwise use format *IP:port*)
 - Parent Device: none
 
 After installation, ensure to change the "IP" variable under the master device (if not specified before).
+This is the OpenSprinkler Controller internal IP address (host name are supported too) and port (omit if 80, otherwise use format *IP:port*).
 
 Password is set to "opendoor" (in MD5 format), but you need to change it (see next part).
 

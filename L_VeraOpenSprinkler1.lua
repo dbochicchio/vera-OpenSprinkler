@@ -7,7 +7,7 @@
 module("L_VeraOpenSprinkler1", package.seeall)
 
 local _PLUGIN_NAME = "VeraOpenSprinkler"
-local _PLUGIN_VERSION = "1.51"
+local _PLUGIN_VERSION = "1.51-hotfix"
 
 local debugMode = false
 local masterID = -1
@@ -273,7 +273,7 @@ local function sendDeviceCommand(cmd, params)
 	local pstr = table.concat(pv, "&") or ""
 
 	local password = getVar(MYSID, "Password", "", masterID)
-	local ip = luup.attr_get("ip", masterID) or ""
+	local ip = getVar(MYSID, "IP", "", masterID)
 
 	local cmdUrl = string.format('http://%s/%s?%s&pw=%s', ip, cmd, pstr, password)
 	D("sendDeviceCommand - url: %1", cmdUrl)
@@ -311,13 +311,14 @@ local function discovery(jsonResponse)
 				D("[discovery] Adding zone: %1 - #%2", zoneID, childID)
 				local initialVariables = string.format("%s,%s=%s\n%s,%s=%s\n%s,%s=%s\n",
 											MYSID, "ZoneID", (zoneID-1),
+											"", "room", roomID,
 											"", "category_num", 3,
 											"", "subcategory_num", 7
 											)
 				luup.chdev.append(masterID, child_devices, string.format(CHILDREN_ZONE, zoneID), zoneName, SCHEMAS_DIMMER, "D_VeraOpenSprinklerStation1.xml", "", initialVariables, false)
 
 				if childID ~= 0 then
-					D("[discovery] Updating Zone %1 - #%2: %3", childID, zoneID, zoneName)
+					D("[discovery] Updating Zone #%1 - %2: %3", childID, zoneID, zoneName)
 
 					local overrideName = getVarNumeric(MYSID, "UpdateNameFromController", 1, childID) == 1
 					local oldName =	luup.attr_get("name", childID)
@@ -364,13 +365,12 @@ local function discovery(jsonResponse)
 	L("[discovery] 2/3 in progress...")
 	local programs = jsonResponse.programs and tonumber(jsonResponse.programs.nprogs) or 0
 
+	D("[discovery] 2/3 Programs: %1", programs)
 	if programs > 0 then
 		-- get programs
 		for programID = 1, programs do
-			--local programID = i-1
-
 			local counter = table.getn(jsonResponse.programs.pd[programID])
-			local programName = jsonResponse.programs.pd[i][counter] -- last element in the array
+			local programName = jsonResponse.programs.pd[programID][counter] -- last element in the array
 
 			D("[discovery] Program %1 - Name: %2 - %3", programID, programName, jsonResponse.programs.pd[programID])
 	
@@ -379,13 +379,25 @@ local function discovery(jsonResponse)
 			-- Set the program name
 			D("[discovery] Adding program: %1 - #%2", programID, childID)
 
+			-- save program data, to stop stations when stopping the program
+			local programData = jsonResponse.programs.pd[programID][counter-1] -- last-1 element in the array
+			local programData_Zones = ""
+			D("[discovery] Setting zone data: %1 - %2 - %3", childID, programID, programData)
+			if programData ~= nil then
+				for i=1,#programData do
+					programData_Zones = programData_Zones .. tostring(programData[programID]) .. ","
+				end
+			end
+
 			local initialVariables = string.format("%s,%s=%s\n%s,%s=%s\n%s,%s=%s\n",
-									MYSID, "ZoneID", (programID-1),
+									MYSID, "ProgramID", (programID-1),
+									MYSID, "Zones", (programData_Zones or ""),
+									"", "room", roomID,
 									"", "category_num", 3,
 									"", "subcategory_num", 7
 									)
 
-			luup.chdev.append(masterID, child_devices, string.format(CHILDREN_PROGRAM, programID), programName, SCHEMAS_WATERVALVE, "D_VeraOpenSprinkler1.xml", "", initialVariables, false)
+			luup.chdev.append(masterID, child_devices, string.format(CHILDREN_PROGRAM, programID), programName, SCHEMAS_BINARYLIGHT, "D_VeraOpenSprinkler1.xml", "", initialVariables, false)
 
 			if childID ~= 0 then
 				D("[discovery] Updating Program %1 - Name: %2 - %3", programID, programName, childID)
@@ -397,16 +409,10 @@ local function discovery(jsonResponse)
 					setVar(MYSID, "UpdateNameFromController", 1, childID)
 				end
 				
-				setVar(MYSID, "ProgramID", programID, childID)
+				setVar(MYSID, "ProgramID", (programID -1), childID)
 
 				-- save program data, to stop stations when stopping the program
-				local programData = jsonResponse.programs.pd[i][counter-1] -- last-1 element in the array
-				if programData ~= nil then
-					D("[discovery] Setting zone data: %1 - %2 - %3", childID, programID, programData)
-					local programData_Zones = ""
-					for i=1,#programData do
-						programData_Zones = programData_Zones .. tostring(programData[programID]) .. ","
-					end
+				if programData_Zones ~= nil then
 					setVar(MYSID, "Zones", programData_Zones, childID)
 				else
 					D("[discovery] Setting zone data FAILED: %1 - %2", childID, programID)
@@ -854,10 +860,9 @@ function startPlugin(devNum)
 	for k,v in pairs(luup.devices) do
 		if v.device_type == "openLuup" then
 			openLuup = true
-			BIN_PATH = "/etc/cmh-ludl/VeraAlexa"
 		end
 	end
-	D(devNum, "OpenLuup: %1", openLuup)
+	D("[startup] OpenLuup: %1", openLuup)
 
 	-- init
 	initVar(SWITCHSID, "Target", "0", masterID)
@@ -880,6 +885,15 @@ function startPlugin(devNum)
 
 	-- IP configuration
 	local ip = luup.attr_get("ip", masterID)
+	if ip ~= nil and ip ~= "" then
+		initVar(MYSID, "IP", ip, masterID)
+		luup.attr_set("ip", "", masterID)
+		D("[startup] IP migrated")
+	else
+		ip = getVar(MYSID, "IP", "", masterID)
+		D("[startup] IP loaded: %1", ip)
+	end
+
 	if ip == nil or string.len(ip) == 0 then -- no IP = failure
 		luup.set_failure(2, masterID)
 		return false, "Please set controller IP adddress", _PLUGIN_NAME
