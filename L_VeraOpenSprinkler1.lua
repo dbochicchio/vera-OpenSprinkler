@@ -7,7 +7,7 @@
 module("L_VeraOpenSprinkler1", package.seeall)
 
 local _PLUGIN_NAME = "VeraOpenSprinkler"
-local _PLUGIN_VERSION = "1.50"
+local _PLUGIN_VERSION = "1.51"
 
 local debugMode = false
 local masterID = -1
@@ -189,6 +189,9 @@ local function formatDateTime(v)
 end
 
 function httpGet(url)
+	-- purge files after 2 minutes
+	os.execute("find /tmp/opensprinkler_*.json ! -mtime 2 | xargs rm -rf")
+
 	local timeout = 5
 	local fileName = "/tmp/opensprinkler_" .. tostring(math.random(0, 999999)) .. ".json"
 
@@ -314,7 +317,7 @@ local function discovery(jsonResponse)
 				luup.chdev.append(masterID, child_devices, string.format(CHILDREN_ZONE, zoneID), zoneName, SCHEMAS_DIMMER, "D_VeraOpenSprinklerStation1.xml", "", initialVariables, false)
 
 				if childID ~= 0 then
-					D("[discovery] Zone %1 - #%2: %3", childID, zoneID, zoneName)
+					D("[discovery] Updating Zone %1 - #%2: %3", childID, zoneID, zoneName)
 
 					local overrideName = getVarNumeric(MYSID, "UpdateNameFromController", 1, childID) == 1
 					local oldName =	luup.attr_get("name", childID)
@@ -324,19 +327,24 @@ local function discovery(jsonResponse)
 					end
 
 					setVar(MYSID, "ZoneID", (zoneID-1), childID)
-					luup.attr_set("device_json", "D_VeraOpenSprinklerStation1.json", childID) -- fix it
 
-					if tostring(luup.attr_get("category_num", childID) or "0") ~= "3" or tostring(luup.attr_get("subcategory_num", childID) or "0") == "0" then
-						luup.attr_set("category_num", "3", childID)			-- Dimmer
-						luup.attr_set("subcategory_num", "7", childID)		-- Water Valve
-						setVar(HASID, "Configured", 1, childID)
+					-- fix device types
+					luup.attr_set("device_file", "D_VeraOpenSprinklerStation1.xml", childID)
+					luup.attr_set("device_json", "D_VeraOpenSprinklerStation1.json", childID)
 
-						-- dimmers
-						initVar(DIMMERSID, "LoadLevelTarget", "0", childID)
-						initVar(DIMMERSID, "LoadLevelLast", "0", childID)
-						initVar(DIMMERSID, "TurnOnBeforeDim", "0", childID)
-						initVar(DIMMERSID, "AllowZeroLevel", "1", childID)
-					end
+					luup.attr_set("category_num", "3", childID)			-- Dimmer
+					luup.attr_set("subcategory_num", "7", childID)		-- Water Valve
+					setVar(HASID, "Configured", 1, childID)
+
+					-- dimmer
+					initVar(DIMMERSID, "LoadLevelTarget", "0", childID)
+					initVar(DIMMERSID, "LoadLevelLast", "0", childID)
+					initVar(DIMMERSID, "TurnOnBeforeDim", "0", childID)
+					initVar(DIMMERSID, "AllowZeroLevel", "1", childID)
+
+					-- switch
+					initVar(SWITCHSID, "Target", "0", childID)
+					initVar(SWITCHSID, "Status", "0", childID)
 
 					if childrenSameRoom then
 						luup.attr_set("room", roomID, childID)
@@ -358,13 +366,13 @@ local function discovery(jsonResponse)
 
 	if programs > 0 then
 		-- get programs
-		for i = 1, programs do
-			local programID = i-1
+		for programID = 1, programs do
+			--local programID = i-1
 
-			local counter = table.getn(jsonResponse.programs.pd[i])
+			local counter = table.getn(jsonResponse.programs.pd[programID])
 			local programName = jsonResponse.programs.pd[i][counter] -- last element in the array
 
-			D("[discovery] Program %1 - Name: %2 - %3", programID, programName, jsonResponse.programs.pd[i])
+			D("[discovery] Program %1 - Name: %2 - %3", programID, programName, jsonResponse.programs.pd[programID])
 	
 			local childID = findChild(string.format(CHILDREN_PROGRAM, programID))
 
@@ -377,10 +385,10 @@ local function discovery(jsonResponse)
 									"", "subcategory_num", 7
 									)
 
-			luup.chdev.append(masterID, child_devices, string.format(CHILDREN_PROGRAM, programID), programName, SCHEMAS_WATERVALVE, "D_WaterValve1.xml", "", initialVariables, false)
+			luup.chdev.append(masterID, child_devices, string.format(CHILDREN_PROGRAM, programID), programName, SCHEMAS_WATERVALVE, "D_VeraOpenSprinkler1.xml", "", initialVariables, false)
 
 			if childID ~= 0 then
-				D("[discovery] Set Name for Device %3 - Program #%1: %2", programID, programName, childID)
+				D("[discovery] Updating Program %1 - Name: %2 - %3", programID, programName, childID)
 
 				local overrideName = getVarNumeric(MYSID, "UpdateNameFromController", 1, childID) == 1
 				local oldName =	luup.attr_get("name", childID)
@@ -397,19 +405,24 @@ local function discovery(jsonResponse)
 					D("[discovery] Setting zone data: %1 - %2 - %3", childID, programID, programData)
 					local programData_Zones = ""
 					for i=1,#programData do
-						programData_Zones = programData_Zones .. tostring(programData[i]) .. ","
+						programData_Zones = programData_Zones .. tostring(programData[programID]) .. ","
 					end
 					setVar(MYSID, "Zones", programData_Zones, childID)
 				else
 					D("[discovery] Setting zone data FAILED: %1 - %2", childID, programID)
 				end
 
-				if tostring(luup.attr_get("category_num", childID) or "0") ~= "3" or tostring(luup.attr_get("category_num", childID) or "0") == "0" then
-					luup.attr_set("category_num", "3", childID)			-- Switch
-					luup.attr_set("subcategory_num", "7", childID)		-- Water Valve
+				-- fix device types
+				luup.attr_set("device_file", "D_VeraOpenSprinkler1.xml", childID)
+				luup.attr_set("device_json", "D_WaterValve1.json", childID)
 
-					setVar(HASID, "Configured", 1, childID)
-				end
+				luup.attr_set("category_num", "3", childID)			-- Switch
+				luup.attr_set("subcategory_num", "7", childID)		-- Water Valve
+				setVar(HASID, "Configured", 1, childID)
+				
+				-- switch
+				initVar(SWITCHSID, "Target", "0", childID)
+				initVar(SWITCHSID, "Status", "0", childID)
 
 				if childrenSameRoom then
 					luup.attr_set("room", roomID, childID)
@@ -557,7 +570,7 @@ local function updateStatus(jsonResponse)
 
 	if programs ~= nil and #programs > 0 then
 		for i = 2, #programs do -- ignore the program
-			local programIndex = i-2
+			local programIndex = i-1
 			local childID = findChild(string.format(CHILDREN_PROGRAM, programIndex))
 			if childID > 0 then
 				D("[updateStatus] Program Status for %1: %2", childID, programs[i][1])
@@ -615,7 +628,7 @@ local function updateStatus(jsonResponse)
 				D('[updateStatus] Zone: %1', ps)
 
 				local level = math.floor(tonumber(ps[2]) / 60  + 0.5)
-				setVar(DIMMERSID, "LoadLevelTarget", level, childID)
+				--setVar(DIMMERSID, "LoadLevelTarget", level, childID)
 				setVar(DIMMERSID, "LoadLevelStatus", level, childID)
 				D('[updateStatus] Zone level: %1', level)
 
@@ -848,7 +861,7 @@ function startPlugin(devNum)
 
 	-- init
 	initVar(SWITCHSID, "Target", "0", masterID)
-	initVar(SWITCHSID, "Status", "-1", masterID)
+	initVar(SWITCHSID, "Status", "0", masterID)
 
 	initVar(MYSID, "DebugMode", "0", masterID)
 	initVar(MYSID, "LegacyMode", "0", masterID)

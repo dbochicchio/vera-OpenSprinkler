@@ -73,8 +73,8 @@
 					"states": [
 						{
 							"Label": {
-								"lang_tag": "ui7_cmd_on",
-								"text": "On"
+								"lang_tag": "ui7_cmd_open",
+								"text": "Open"
 							},
 							"ControlGroup": "1",
 							"Display": {
@@ -92,12 +92,12 @@
 									}
 								]
 							},
-							"ControlCode": "power_on"
+							"ControlCode": "open"
 						},
 						{
 							"Label": {
-								"lang_tag": "ui7_cmd_off",
-								"text": "Off"
+								"lang_tag": "ui7_general_ucase_closed",
+								"text": "Closed"
 							},
 							"ControlGroup": "1",
 							"Display": {
@@ -115,7 +115,7 @@
 									}
 								]
 							},
-							"ControlCode": "power_off"
+							"ControlCode": "close"
 						}
 					]
 				},
@@ -125,17 +125,17 @@
 					"top": "0",
 					"left": "0",
 					"Label": {
-						"lang_tag": "ui7_cmd_on",
-						"text": "On"
+						"lang_tag": "ui7_cmd_open",
+						"text": "Open"
 					},
 					"Style": "numeric",
 					"LabelMin": {
 						"lang_tag": "ui7_dimmable_light_label_min",
-						"text": "off"
+						"text": "closed"
 					},
 					"LabelMax": {
 						"lang_tag": "ui7_dimmable_light_label_max",
-						"text": "on"
+						"text": "open"
 					},
 					"LabelSymbol": {
 						"lang_tag": "ui7_dimmable_light_label_symbol",
@@ -197,7 +197,7 @@
 						{
 							"Action": "set_value",
 							"ActionArgument": "100",
-							"Target": "power_on"
+							"Target": "open"
 						}
 					]
 				}
@@ -320,8 +320,8 @@
 		{
 			"id": 1,
 			"label": {
-				"lang_tag": "ui7_a_device_is_turned_on_off",
-				"text": "A device is turned on or off"
+				"lang_tag": "ui7_a_valve_is_opened_or_closed",
+				"text": "A valve is opened or closed"
 			},
 			"serviceId": "urn:upnp-org:serviceId:SwitchPower1",
 			"argumentList": [
@@ -331,17 +331,17 @@
 					"defaultValue": "1",
 					"allowedValueList": [
 						{
-							"Off": "0",
+							"Opened": "1",
 							"HumanFriendlyText": {
-								"lang_tag": "ui7_hft_device_turned_off",
-								"text": "Whenever the _DEVICE_NAME_ is turned off"
+								"lang_tag": "ui7_hft_device_opened",
+								"text": "Whenever the _DEVICE_NAME_ is opened"
 							}
 						},
 						{
-							"On": "1",
+							"Closed": "0",
 							"HumanFriendlyText": {
-								"lang_tag": "ui7_hft_device_turned_on",
-								"text": "Whenever the _DEVICE_NAME_ is turned on"
+								"lang_tag": "ui7_hft_device_closed",
+								"text": "Whenever the _DEVICE_NAME_ is closed"
 							}
 						}
 					],
