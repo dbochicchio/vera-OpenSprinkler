@@ -636,7 +636,7 @@ local function updateStatus(jsonResponse)
 				local level = math.floor(tonumber(ps[2]) / 60  + 0.5)
 
 				if level == 0 and state == 1 then
-					D('[updateStatus] Zone Level adjusted to 1', ps)
+					D('[updateStatus] Zone %1 Level adjusted to 1', ps)
 					level = 1
 				end
 
