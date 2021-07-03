@@ -7,7 +7,7 @@
 module("L_VeraOpenSprinkler1", package.seeall)
 
 local _PLUGIN_NAME = "VeraOpenSprinkler"
-local _PLUGIN_VERSION = "1.51-hotfix"
+local _PLUGIN_VERSION = "1.51-hotfix2"
 
 local debugMode = false
 local masterID = -1
@@ -634,6 +634,12 @@ local function updateStatus(jsonResponse)
 				D('[updateStatus] Zone: %1', ps)
 
 				local level = math.floor(tonumber(ps[2]) / 60  + 0.5)
+
+				if level == 0 and state == 1 then
+					D('[updateStatus] Zone Level adjusted to 1', ps)
+					level = 1
+				end
+
 				--setVar(DIMMERSID, "LoadLevelTarget", level, childID)
 				setVar(DIMMERSID, "LoadLevelStatus", level, childID)
 				D('[updateStatus] Zone level: %1', level)
@@ -896,7 +902,7 @@ function startPlugin(devNum)
 
 	if ip == nil or string.len(ip) == 0 then -- no IP = failure
 		luup.set_failure(2, masterID)
-		return false, "Please set controller IP adddress", _PLUGIN_NAME
+		return false, "Please set controller's IP adddress", _PLUGIN_NAME
 	end
 
 	math.randomseed(tonumber(tostring(os.time()):reverse():sub(1,6)))
